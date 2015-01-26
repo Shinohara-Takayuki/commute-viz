@@ -1,6 +1,7 @@
 library(ggplot2)
 library(dplyr)
 library(reshape2)
+library(scales)
 
 # below line updated to reflect latest .csv file downloaded
 commutes <- read.csv("ngihxhngzmtcwjhalspmtdfikchs.csv",
@@ -18,19 +19,23 @@ commutes.melt$departure <- strptime(commutes.melt$departure,
 # -8 to convert to LA time
 
 ggplot(commutes.melt, aes(x=departure, y=trip_length_min, colour=direction)) + 
-    geom_line()
+    geom_line() + 
+        scale_x_datetime(labels = date_format("%m/%d %H"), breaks = "2 hour")
 
 
-# summarize by time
+#### summarize by time (round to nearest minute)
+
+#### to work
+# get time diff and then round to nearest 10 minute, convert to hours
+a <- as.numeric(strptime(substr(
+    commutes.melt$departure, 12, 16), "%H:%M") - strptime("00:00:00", "%H:%M:%S"))
+
 by.time <- commutes.melt %>% 
-    mutate(departure = substr(departure, 12, 19)) %>%
-        group_by(departure) %>%
+    mutate(departure = round(a, -1) / 60) %>%
+        group_by(departure, direction) %>%
             summarise(mean=mean(trip_length_min), 
                 med=median(trip_length_min), count=n())
 
-# get time diff
-a <- strptime(by.time$departure, "%H:%M:%S") - strptime("00:00:00", "%H:%M:%S")
-# convert to hours, subtract 8 hours to get to EST, add 24 and mod 24 to get wrap-around
-a <- (24 + ((as.numeric(a) / 60) - 8)) %% 24
-by.time$departure <- a
-ggplot(by.time, aes(x=departure, y=mean)) + geom_point()
+ggplot(by.time, aes(x=departure, y=mean)) + 
+    geom_line(aes(colour=direction)) + 
+        scale_x_continuous(breaks=seq(0, 24, 1))
